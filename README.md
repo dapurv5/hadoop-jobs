@@ -20,4 +20,6 @@ Copy your jar to any of the machines in the cluster and run the following comman
 hadoop jar mimosa-hadoop-1.0.jar <input-path-dir> <output-path-dir>
 ```
 
+### View Progress of your jar after setting up socks proxy
+https://docs.google.com/document/d/1zjlO7pLK1y42zOMUbyv0eTjTfeUyJZflP8_1WHS9rUs/edit?usp=sharing
 
