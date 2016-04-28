@@ -5,6 +5,7 @@ package org.gatech.hadoop;
 
 import java.io.IOException;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -81,13 +82,13 @@ public class NodeDegree {
 
   public static void main(String[] args)
       throws IOException, ClassNotFoundException, InterruptedException {
-    args = new String[2];
-    args[0] = "/home/dapurv5/Downloads/quotes_2008-08-small.txt.gz";
-    args[1] = "/home/dapurv5/Desktop/hdfs-output/meme_tracker";
+    //args = new String[2];
+    //args[0] = "/home/dapurv5/Downloads/quotes_2008-08-small.txt.gz";
+    //args[1] = "/home/dapurv5/Desktop/hdfs-output/meme_tracker";
 
-    Job job = new Job();
+    Configuration conf = new Configuration();
+    Job job = Job.getInstance(conf, "node_degree");
     job.setJarByClass(NodeDegree.class);
-    job.setJobName("node_degree");
 
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));

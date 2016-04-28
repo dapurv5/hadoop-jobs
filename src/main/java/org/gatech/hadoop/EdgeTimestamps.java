@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import org.apache.hadoop.filecache.DistributedCache;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -89,10 +89,12 @@ public class EdgeTimestamps {
     args[1] = "/home/dapurv5/Desktop/hdfs-output/meme_tracker";
     args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-subset-500.tsv";
 
-    Job job = new Job();
-    //DistributedCache.addCacheFile(new URI(args[2]), job.getConfiguration());
+    Configuration conf = new Configuration();
+    Job job = Job.getInstance(conf, "edge_timestamps");
     job.setJarByClass(EdgeTimestamps.class);
-    job.setJobName("edge_timestamps");
+    
+    //Use this instead of distributed cache
+    job.addCacheFile(new URI(args[2]));
 
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
