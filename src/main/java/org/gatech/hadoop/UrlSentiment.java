@@ -28,19 +28,16 @@ import org.joda.time.format.DateTimeFormatter;
 
 /**
  * This class was written for processing http://snap.stanford.edu/data/memetracker9.html
- * It emits the (edge,timestamp) pairs where 'edge' is the concatenation of 2 urls and
- * timestamp is the time when this edge was formed
+ * It emits the (timestamp      url,score) pairs
  * We limit the output to top 500 urls by degree, the top urls are specified as the 3rd 
  * parameter to the program
  */
-public class EdgeTimestamps {
+public class UrlSentiment {
 
-  public static class EdgeTimestampMapper 
+  public static class UrlSentimentMapper 
   extends Mapper<LongWritable, Text, Text, LongWritable> {
     private final static Text pUrl = new Text(); //current p_url
-    private final static Text lUrl = new Text(); //current l_url
     private final static LongWritable timestamp = new LongWritable();
-    private final static Text edge = new Text();
     private final static Set<String> topUrls = new HashSet<>();
     private final DateTimeFormatter f = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -66,23 +63,9 @@ public class EdgeTimestamps {
       String[] arr = line.split("\t");
       if(arr[0].equals("P")) {
         pUrl.set(extractUrl(arr[1]));
-      } else if(arr[0].equals("L")) {
-        lUrl.set(extractUrl(arr[1]));
       } else if(arr[0].equals("T")) {
         DateTime dt = f.parseDateTime(arr[1]);
         timestamp.set(dt.getMillis()/1000); //convert to seconds since epoch
-      }
-    }
-    
-    /**
-     * Constructs a url pair such that the first url is always smaller than 
-     * the second url (lexicographically)
-     */
-    private String constructEdge(String pUrl, String lUrl) {
-      if(pUrl.compareTo(lUrl) < 0) {
-        return pUrl + "," + lUrl;
-      } else {
-        return lUrl + "," + pUrl;
       }
     }
 
@@ -116,21 +99,16 @@ public class EdgeTimestamps {
         return;
       }
 
-      if(pUrl.toString().length() > 0 &&
-          lUrl.toString().length() > 0 && timestamp.get() > -1) {
-        //construct edge
-        edge.set(constructEdge(pUrl.toString(), lUrl.toString()));
+      if(pUrl.toString().length() > 0 && timestamp.get() > -1) {
         //Write the results only if both p and l are top urls.
-        if(topUrls.contains(pUrl.toString()) 
-            && topUrls.contains(lUrl.toString())) {
+        if(topUrls.contains(pUrl.toString())) {
           context.write(edge, timestamp);
-        }        
-        lUrl.clear();
+        }
       }
     }
   }
 
-  public static class EdgeTimestampReducer
+  public static class UrlSentimentReducer
   extends Reducer<Text, LongWritable, Text, LongWritable> {
     private final static LongWritable timestamp = new LongWritable();
 
@@ -155,8 +133,8 @@ public class EdgeTimestamps {
     //args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-subset-500.tsv";
 
     Configuration conf = new Configuration();
-    Job job = Job.getInstance(conf, "edge_timestamps");
-    job.setJarByClass(EdgeTimestamps.class);
+    Job job = Job.getInstance(conf, "url_sentiment");
+    job.setJarByClass(UrlSentiment.class);
 
     //Use this instead of distributed cache
     job.addCacheFile(new URI(args[2]));
@@ -164,9 +142,9 @@ public class EdgeTimestamps {
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
-    job.setMapperClass(EdgeTimestampMapper.class);
-    job.setReducerClass(EdgeTimestampReducer.class);
-    job.setCombinerClass(EdgeTimestampReducer.class);
+    job.setMapperClass(UrlSentimentMapper.class);
+    job.setReducerClass(UrlSentimentReducer.class);
+    job.setCombinerClass(UrlSentimentReducer.class);
 
     job.setOutputKeyClass(Text.class);
     job.setOutputValueClass(LongWritable.class);

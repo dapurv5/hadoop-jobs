@@ -3,7 +3,7 @@
 Maven project template for writing and submitting jobs to mimosa cluster
 
 ### Clone the project
-git clone git@github.com:dapurv5/mimosa-hadoop.git
+git clone https://github.gatech.edu/datascience-platform/example-mimosa-job.git
 
 ###Write your map-reduce job
 Refer to NodeDegree.java for how to write a sample map-reduce job
