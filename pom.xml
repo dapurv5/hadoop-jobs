@@ -9,8 +9,8 @@
 	<url>http://maven.apache.org</url>
 
 	<properties>
-		<maven.compiler.source>1.8</maven.compiler.source>
-		<maven.compiler.target>1.8</maven.compiler.target>
+		<maven.compiler.source>1.7</maven.compiler.source>
+		<maven.compiler.target>1.7</maven.compiler.target>
 	</properties>
 	<!-- Please note order of the hadoop dependencies is important !!! -->
 	<dependencies>
@@ -46,6 +46,12 @@
 			<artifactId>hadoop-auth</artifactId>
 			<version>2.7.2</version>
 		</dependency>
+		<dependency>
+			<groupId>joda-time</groupId>
+			<artifactId>joda-time</artifactId>
+			<version>2.1</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
@@ -78,7 +84,7 @@
 								<transformer
 									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
 									<!--Put your main class here ! </mainClass -->
-									<mainClass>org.gatech.hadoop.NodeDegree</mainClass>
+									<mainClass>org.gatech.hadoop.EdgeTimestamps</mainClass>
 								</transformer>
 							</transformers>
 						</configuration>
