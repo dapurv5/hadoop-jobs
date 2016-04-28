@@ -60,12 +60,13 @@ public class EdgeTimestamps {
       }
     }
 
-    private String extractUrl(String url) {
-      String[] arr = url.split("\\?");
-      return arr[0];
+    private String extractUrl(String url) throws URISyntaxException {
+      URI uri = new URI(url);
+      String domain = uri.getHost();
+      return domain.startsWith("www.") ? domain.substring(4) : domain;
     }
 
-    private void parseLine(String line) {
+    private void parseLine(String line) throws URISyntaxException {
       String[] arr = line.split("\t");
       if(arr[0].equals("P")) {
         pUrl.set(extractUrl(arr[1]));
@@ -101,9 +102,21 @@ public class EdgeTimestamps {
           pUrl.clear();
           timestamp.set(-1);
         }
-      } catch(Exception e) {
+      } catch(URISyntaxException e) {
+        //If there is an error in parsing the url
+        context.getCounter(Stats.BAD_URL).increment(1);
+        e.printStackTrace();
+        return;
+      } catch(IllegalStateException e) {
+        context.getCounter(Stats.BAD_TIME).increment(1);
         //If there is an error in parsing the time
         e.printStackTrace();
+        return;
+      } catch(Exception e) {
+        context.getCounter(Stats.BAD_MISC).increment(1);
+        //If there is some other kind of error
+        e.printStackTrace();
+        return;
       }
 
       if(pUrl.toString().length() > 0 &&
@@ -114,11 +127,9 @@ public class EdgeTimestamps {
         if(topUrls.contains(pUrl.toString()) 
             && topUrls.contains(lUrl.toString())) {
           context.write(edge, timestamp);
-        }
-        
+        }        
         lUrl.clear();
       }
-
     }
   }
 

@@ -4,6 +4,8 @@
 package org.gatech.hadoop;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -22,19 +24,20 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
  * from the url and 'd' is the degree of the node.
  */
 public class NodeDegree {
-  
+
   public static class UrlCountMapper 
   extends Mapper<LongWritable, Text, Text, IntWritable> {
     private final static Text pUrl = new Text(); //current p_url
     private final static Text lUrl = new Text(); //current l_url
     private final static IntWritable unity = new IntWritable(1);
 
-    private String extractUrl(String url) {
-      String[] arr = url.split("\\?");
-      return arr[0];
+    private String extractUrl(String url) throws URISyntaxException {
+      URI uri = new URI(url);
+      String domain = uri.getHost();
+      return domain.startsWith("www.") ? domain.substring(4) : domain;
     }
 
-    private void parseLine(String line) {
+    private void parseLine(String line) throws URISyntaxException {
       String[] arr = line.split("\t");
       if(arr[0].equals("P")) {
         pUrl.set(extractUrl(arr[1]));
@@ -47,13 +50,29 @@ public class NodeDegree {
     public void map(LongWritable key, Text val, Context context) 
         throws IOException, InterruptedException {
       String line = val.toString();
-      line = line.trim();
-      if(line.length() > 0) {
-        parseLine(line);
-      } else {
-        pUrl.clear();
+      try{
+        if(line.length() > 0) {
+          parseLine(line);
+        } else {
+          pUrl.clear();
+        }
+      } catch(URISyntaxException e) {
+        //If there is an error in parsing the url
+        context.getCounter(Stats.BAD_URL).increment(1);
+        e.printStackTrace();
+        return;
+      } catch(IllegalStateException e) {
+        //If there is an error in parsing the time
+        context.getCounter(Stats.BAD_TIME).increment(1);
+        e.printStackTrace();
+        return;
+      } catch(Exception e) {
+        //If there is some other kind of error
+        context.getCounter(Stats.BAD_MISC).increment(1);
+        e.printStackTrace();
+        return;
       }
-      
+
       if(pUrl.toString().length() > 0 && lUrl.toString().length() > 0) {
         //increment degree for each page by one
         context.write(pUrl, unity);
