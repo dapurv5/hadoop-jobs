@@ -4,7 +4,10 @@
 package org.gatech.hadoop;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
+import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -20,8 +23,8 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
  * It emits the (u,d) pairs where 'u' is the primary url obtained by stripping off all params
  * from the url and 'd' is the degree of the node.
  */
-public class NodeDegree {
-  
+public class EdgeTimestamps {
+
   public static class UrlCountMapper 
   extends Mapper<LongWritable, Text, Text, IntWritable> {
     private final static Text pUrl = new Text(); //current p_url
@@ -79,15 +82,17 @@ public class NodeDegree {
     }
   }
 
-  public static void main(String[] args)
-      throws IOException, ClassNotFoundException, InterruptedException {
-    args = new String[2];
+  public static void main(String[] args) throws IOException,
+      ClassNotFoundException, InterruptedException, URISyntaxException {
+    args = new String[3];
     args[0] = "/home/dapurv5/Downloads/quotes_2008-08-small.txt.gz";
     args[1] = "/home/dapurv5/Desktop/hdfs-output/meme_tracker";
+    args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-subset-500.tsv";
 
     Job job = new Job();
-    job.setJarByClass(NodeDegree.class);
-    job.setJobName("node_degree");
+    //DistributedCache.addCacheFile(new URI(args[2]), job.getConfiguration());
+    job.setJarByClass(EdgeTimestamps.class);
+    job.setJobName("edge_timestamps");
 
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
