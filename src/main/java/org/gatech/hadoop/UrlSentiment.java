@@ -9,7 +9,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
@@ -19,7 +21,6 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.joda.time.DateTime;
@@ -34,14 +35,17 @@ import org.joda.time.format.DateTimeFormatter;
  */
 public class UrlSentiment {
 
-  public static class UrlSentimentMapper 
-  extends Mapper<LongWritable, Text, Text, LongWritable> {
+  public static class UrlSentimentMapper
+  extends Mapper<LongWritable, Text, LongWritable, Text> {
     private final static Text pUrl = new Text(); //current p_url
     private final static LongWritable timestamp = new LongWritable();
     private final static Set<String> topUrls = new HashSet<>();
     private final DateTimeFormatter f = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss");
+    private final List<String> comments = new ArrayList<>();
+    private final Text sentimentUrlPair = new Text();
 
     protected void setup(Context context) throws IOException {
+      NLP.init();
       URI[] localPaths = context.getCacheFiles();
       FileSystem fs = FileSystem.get(context.getConfiguration());
       InputStream in = fs.open(new Path(localPaths[0]));
@@ -66,6 +70,8 @@ public class UrlSentiment {
       } else if(arr[0].equals("T")) {
         DateTime dt = f.parseDateTime(arr[1]);
         timestamp.set(dt.getMillis()/1000); //convert to seconds since epoch
+      } else if(arr[0].equals("Q")) {
+        comments.add(arr[1]);
       }
     }
 
@@ -74,13 +80,28 @@ public class UrlSentiment {
         throws IOException, InterruptedException {
       String line = val.toString();
       line = line.trim();
+      //System.out.println(line);
       try{
         if(line.length() > 0) {
           context.getCounter(Stats.TOTAL_LINES).increment(1);
           parseLine(line);
         } else {
+          if(pUrl.toString().length() > 0 &&
+                     timestamp.get() > -1 && 
+                     comments.size() > 0 &&
+                     topUrls.contains(pUrl.toString())) {
+            //compute the average sentiment
+            float sigmaSentiment = 0;
+            for(String comment : comments) {
+              sigmaSentiment += NLP.findSentiment(comment);
+            }
+            float avgSentiment = sigmaSentiment/comments.size();
+            sentimentUrlPair.set(avgSentiment + "," + pUrl.toString());
+            context.write(timestamp, sentimentUrlPair);
+          }
           pUrl.clear();
           timestamp.set(-1);
+          comments.clear();
         }
       } catch(URISyntaxException e) {
         //If there is an error in parsing the url
@@ -98,29 +119,6 @@ public class UrlSentiment {
         e.printStackTrace();
         return;
       }
-
-      if(pUrl.toString().length() > 0 && timestamp.get() > -1) {
-        //Write the results only if both p and l are top urls.
-        if(topUrls.contains(pUrl.toString())) {
-          context.write(edge, timestamp);
-        }
-      }
-    }
-  }
-
-  public static class UrlSentimentReducer
-  extends Reducer<Text, LongWritable, Text, LongWritable> {
-    private final static LongWritable timestamp = new LongWritable();
-
-    @Override
-    protected void reduce(Text url, Iterable<LongWritable> timestamps, Context context)
-        throws IOException, InterruptedException {
-      long minTime = Long.MAX_VALUE;
-      for(LongWritable t: timestamps) {
-        minTime = Math.min(minTime, t.get());
-      }
-      timestamp.set(minTime);
-      context.write(url, timestamp);
     }
   }
 
@@ -129,8 +127,8 @@ public class UrlSentiment {
     //args = new String[3];
     //args[0] = "/home/dapurv5/Downloads/quotes_2008-08-small.txt.gz";
     //args[1] = "/home/dapurv5/Desktop/hdfs-output/meme_tracker";
-    //args[2] = "file:///home/dapurv5/Downloads/meme_tracker/nodes-subset-500.tsv";
-    //args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-subset-500.tsv";
+    //args[2] = "file:///home/dapurv5/Downloads/meme_tracker/nodes-500.tsv";
+    //args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-500.tsv";
 
     Configuration conf = new Configuration();
     Job job = Job.getInstance(conf, "url_sentiment");
@@ -143,11 +141,9 @@ public class UrlSentiment {
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
     job.setMapperClass(UrlSentimentMapper.class);
-    job.setReducerClass(UrlSentimentReducer.class);
-    job.setCombinerClass(UrlSentimentReducer.class);
 
-    job.setOutputKeyClass(Text.class);
-    job.setOutputValueClass(LongWritable.class);
+    job.setOutputKeyClass(LongWritable.class);
+    job.setOutputValueClass(Text.class);
     System.exit(job.waitForCompletion(true)?0:1);
   }
 
