@@ -1,7 +1,7 @@
 /**
  *  Copyright (c) 2016 Apurv Verma
  */
-package org.gatech.hadoop;
+package com.apurv.hadoop;
 
 import java.io.IOException;
 import java.net.URI;

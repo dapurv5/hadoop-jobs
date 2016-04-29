@@ -1,4 +1,4 @@
-package org.gatech.hadoop;
+package com.apurv.hadoop;
 
 import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations;

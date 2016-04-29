@@ -1,4 +1,4 @@
-package org.gatech.hadoop;
+package com.apurv.hadoop;
 
 public enum Stats {
   TOTAL_LINES,

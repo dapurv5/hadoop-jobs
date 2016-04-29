@@ -1,7 +1,7 @@
 /**
  *  Copyright (c) 2016 Apurv Verma
  */
-package org.gatech.hadoop;
+package com.apurv.hadoop;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -9,7 +9,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
@@ -19,7 +21,6 @@ import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.joda.time.DateTime;
@@ -28,23 +29,23 @@ import org.joda.time.format.DateTimeFormatter;
 
 /**
  * This class was written for processing http://snap.stanford.edu/data/memetracker9.html
- * It emits the (edge,timestamp) pairs where 'edge' is the concatenation of 2 urls and
- * timestamp is the time when this edge was formed
+ * It emits the (timestamp      url,score) pairs
  * We limit the output to top 500 urls by degree, the top urls are specified as the 3rd 
  * parameter to the program
  */
-public class EdgeTimestamps {
+public class UrlSentiment {
 
-  public static class EdgeTimestampMapper 
-  extends Mapper<LongWritable, Text, Text, LongWritable> {
+  public static class UrlSentimentMapper
+  extends Mapper<LongWritable, Text, LongWritable, Text> {
     private final static Text pUrl = new Text(); //current p_url
-    private final static Text lUrl = new Text(); //current l_url
     private final static LongWritable timestamp = new LongWritable();
-    private final static Text edge = new Text();
     private final static Set<String> topUrls = new HashSet<>();
     private final DateTimeFormatter f = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss");
+    private final List<String> comments = new ArrayList<>();
+    private final Text sentimentUrlPair = new Text();
 
     protected void setup(Context context) throws IOException {
+      NLP.init();
       URI[] localPaths = context.getCacheFiles();
       FileSystem fs = FileSystem.get(context.getConfiguration());
       InputStream in = fs.open(new Path(localPaths[0]));
@@ -66,23 +67,11 @@ public class EdgeTimestamps {
       String[] arr = line.split("\t");
       if(arr[0].equals("P")) {
         pUrl.set(extractUrl(arr[1]));
-      } else if(arr[0].equals("L")) {
-        lUrl.set(extractUrl(arr[1]));
       } else if(arr[0].equals("T")) {
         DateTime dt = f.parseDateTime(arr[1]);
         timestamp.set(dt.getMillis()/1000); //convert to seconds since epoch
-      }
-    }
-    
-    /**
-     * Constructs a url pair such that the first url is always smaller than 
-     * the second url (lexicographically)
-     */
-    private String constructEdge(String pUrl, String lUrl) {
-      if(pUrl.compareTo(lUrl) < 0) {
-        return pUrl + "," + lUrl;
-      } else {
-        return lUrl + "," + pUrl;
+      } else if(arr[0].equals("Q")) {
+        comments.add(arr[1]);
       }
     }
 
@@ -91,13 +80,28 @@ public class EdgeTimestamps {
         throws IOException, InterruptedException {
       String line = val.toString();
       line = line.trim();
+      //System.out.println(line);
       try{
         if(line.length() > 0) {
           context.getCounter(Stats.TOTAL_LINES).increment(1);
           parseLine(line);
         } else {
+          if(pUrl.toString().length() > 0 &&
+                     timestamp.get() > -1 && 
+                     comments.size() > 0 &&
+                     topUrls.contains(pUrl.toString())) {
+            //compute the average sentiment
+            float sigmaSentiment = 0;
+            for(String comment : comments) {
+              sigmaSentiment += NLP.findSentiment(comment);
+            }
+            float avgSentiment = sigmaSentiment/comments.size();
+            sentimentUrlPair.set(avgSentiment + "," + pUrl.toString());
+            context.write(timestamp, sentimentUrlPair);
+          }
           pUrl.clear();
           timestamp.set(-1);
+          comments.clear();
         }
       } catch(URISyntaxException e) {
         //If there is an error in parsing the url
@@ -115,34 +119,6 @@ public class EdgeTimestamps {
         e.printStackTrace();
         return;
       }
-
-      if(pUrl.toString().length() > 0 &&
-          lUrl.toString().length() > 0 && timestamp.get() > -1) {
-        //construct edge
-        edge.set(constructEdge(pUrl.toString(), lUrl.toString()));
-        //Write the results only if both p and l are top urls.
-        if(topUrls.contains(pUrl.toString()) 
-            && topUrls.contains(lUrl.toString())) {
-          context.write(edge, timestamp);
-        }        
-        lUrl.clear();
-      }
-    }
-  }
-
-  public static class EdgeTimestampReducer
-  extends Reducer<Text, LongWritable, Text, LongWritable> {
-    private final static LongWritable timestamp = new LongWritable();
-
-    @Override
-    protected void reduce(Text url, Iterable<LongWritable> timestamps, Context context)
-        throws IOException, InterruptedException {
-      long minTime = Long.MAX_VALUE;
-      for(LongWritable t: timestamps) {
-        minTime = Math.min(minTime, t.get());
-      }
-      timestamp.set(minTime);
-      context.write(url, timestamp);
     }
   }
 
@@ -151,12 +127,12 @@ public class EdgeTimestamps {
     //args = new String[3];
     //args[0] = "/home/dapurv5/Downloads/quotes_2008-08-small.txt.gz";
     //args[1] = "/home/dapurv5/Desktop/hdfs-output/meme_tracker";
-    //args[2] = "file:///home/dapurv5/Downloads/meme_tracker/nodes-subset-500.tsv";
-    //args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-subset-500.tsv";
+    //args[2] = "file:///home/dapurv5/Downloads/meme_tracker/nodes-500.tsv";
+    //args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-500.tsv";
 
     Configuration conf = new Configuration();
-    Job job = Job.getInstance(conf, "edge_timestamps");
-    job.setJarByClass(EdgeTimestamps.class);
+    Job job = Job.getInstance(conf, "url_sentiment");
+    job.setJarByClass(UrlSentiment.class);
 
     //Use this instead of distributed cache
     job.addCacheFile(new URI(args[2]));
@@ -164,12 +140,10 @@ public class EdgeTimestamps {
     FileInputFormat.addInputPath(job, new Path(args[0]));
     FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
-    job.setMapperClass(EdgeTimestampMapper.class);
-    job.setReducerClass(EdgeTimestampReducer.class);
-    job.setCombinerClass(EdgeTimestampReducer.class);
+    job.setMapperClass(UrlSentimentMapper.class);
 
-    job.setOutputKeyClass(Text.class);
-    job.setOutputValueClass(LongWritable.class);
+    job.setOutputKeyClass(LongWritable.class);
+    job.setOutputValueClass(Text.class);
     System.exit(job.waitForCompletion(true)?0:1);
   }
 
