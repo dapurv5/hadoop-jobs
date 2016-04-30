@@ -51,18 +51,27 @@
 			<artifactId>joda-time</artifactId>
 			<version>2.1</version>
 		</dependency>
+
+		<!-- Stanford codenlp is very slow and models consume a lot of space -->
+		<!-- Shift reduce model is however O(n) instead of cubic time  -->
 		<dependency>
 			<groupId>edu.stanford.nlp</groupId>
 			<artifactId>stanford-corenlp</artifactId>
-			<version>3.4</version>
+			<version>3.5.2</version>
 		</dependency>
 		<dependency>
 			<groupId>edu.stanford.nlp</groupId>
 			<artifactId>stanford-corenlp</artifactId>
-			<version>3.4</version>
+			<version>3.5.2</version>
 			<classifier>models</classifier>
 		</dependency>
-
+		<dependency>
+			<groupId>edu.stanford.nlp</groupId>
+			<artifactId>stanford-srparser</artifactId>
+			<version>
+				3.5.2
+			</version>
+		</dependency>
 
 
 	</dependencies>
