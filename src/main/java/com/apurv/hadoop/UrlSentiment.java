@@ -17,6 +17,7 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -30,25 +31,23 @@ import org.joda.time.format.DateTimeFormatter;
 
 /**
  * This class was written for processing http://snap.stanford.edu/data/memetracker9.html
- * It emits the (timestamp      url,score) pairs
- * We limit the output to top 500 urls by degree, the top urls are specified as the 3rd 
- * parameter to the program
  */
 public class UrlSentiment {
 
   public static class UrlSentimentMapper
-  extends Mapper<LongWritable, Text, LongWritable, Text> {
+  extends Mapper<LongWritable, Text, LongText, FloatWritable> {
     private final static Text pUrl = new Text(); //current p_url
     private final static LongWritable timestamp = new LongWritable();
     private final static Set<String> topUrls = new HashSet<>();
     private final DateTimeFormatter f = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss");
     private final List<String> comments = new ArrayList<>();
-    private final Text sentimentUrlPair = new Text();
-    private final SentimentAnalysis sa = new SentimentAnalysis();
+    
+    private final FloatWritable sentimentScore = new FloatWritable();
+    private final LongText timestampUrl = new LongText();
 
     protected void setup(Context context) throws IOException {
       //sa.init();
-      NLP.init();
+      //NLP.init();
       URI[] localPaths = context.getCacheFiles();
       FileSystem fs = FileSystem.get(context.getConfiguration());
       InputStream in = fs.open(new Path(localPaths[0]));
@@ -96,11 +95,12 @@ public class UrlSentiment {
             //compute the average sentiment
             float sigmaSentiment = 0;
             for(String comment : comments) {
-              sigmaSentiment += NLP.findSentiment(comment);
+              sigmaSentiment += 0;
             }
             float avgSentiment = sigmaSentiment/comments.size();
-            sentimentUrlPair.set(avgSentiment + "," + pUrl.toString());
-            context.write(timestamp, sentimentUrlPair);
+            sentimentScore.set(avgSentiment);
+            timestampUrl.set(timestamp.get(), pUrl.toString());
+            context.write(timestampUrl, sentimentScore);
           }
           pUrl.clear();
           timestamp.set(-1);
@@ -125,32 +125,24 @@ public class UrlSentiment {
     }
   }
   
-  /**
-   * Due to url shortening, multiple events with same url can occur at the same time
-   * In this case, we simply average the sentiments at a particular timestamp
-   */
+ 
   public static class UrlSentimentReducer
-  extends Reducer<LongWritable, Text, LongWritable, Text> {
+  extends Reducer<LongText, FloatWritable, LongText, FloatWritable> {
     
-    private final static Text sentimentUrlPair = new Text();
+    private final static FloatWritable avgSentimentScore = new FloatWritable();
     
     @Override
-    public void reduce(LongWritable timestamp, Iterable<Text> urlSentimentPairs,
+    public void reduce(LongText timestampUrl, Iterable<FloatWritable> sentimentScores,
         Context context) throws IOException, InterruptedException {
       float avgSentiment = 0;
-      String url = null;
       float count = 0;
-      for(Text sentimentUrlPair: urlSentimentPairs) {
-        String sentimentUrl = sentimentUrlPair.toString();
-        String[] arr = sentimentUrl.split(",");
-        String sentiment = arr[0];
-        url = arr[1];
-        avgSentiment += Float.parseFloat(sentiment);
+      for(FloatWritable sentimentScore: sentimentScores) {
+        avgSentiment += sentimentScore.get();
         count += 1;
       }
       avgSentiment = avgSentiment/count;
-      sentimentUrlPair.set(avgSentiment+","+url);
-      context.write(timestamp, sentimentUrlPair);
+      avgSentimentScore.set(avgSentiment);
+      context.write(timestampUrl, avgSentimentScore);
     }
     
   }
@@ -176,8 +168,8 @@ public class UrlSentiment {
     job.setMapperClass(UrlSentimentMapper.class);
     job.setReducerClass(UrlSentimentReducer.class);
 
-    job.setOutputKeyClass(LongWritable.class);
-    job.setOutputValueClass(Text.class);
+    job.setOutputKeyClass(LongText.class);
+    job.setOutputValueClass(FloatWritable.class);
     System.exit(job.waitForCompletion(true)?0:1);
   }
 

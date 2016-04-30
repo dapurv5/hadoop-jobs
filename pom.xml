@@ -54,24 +54,25 @@
 
 		<!-- Stanford codenlp is very slow and models consume a lot of space -->
 		<!-- Shift reduce model is however O(n) instead of cubic time  -->
-		<dependency>
+		<!-- sr parser worked with version 3.5.1 but it requires java 8 -->
+		<!-- dependency>
 			<groupId>edu.stanford.nlp</groupId>
 			<artifactId>stanford-corenlp</artifactId>
-			<version>3.5.2</version>
+			<version>3.4</version>
 		</dependency>
 		<dependency>
 			<groupId>edu.stanford.nlp</groupId>
 			<artifactId>stanford-corenlp</artifactId>
-			<version>3.5.2</version>
+			<version>3.4</version>
 			<classifier>models</classifier>
 		</dependency>
 		<dependency>
 			<groupId>edu.stanford.nlp</groupId>
 			<artifactId>stanford-srparser</artifactId>
 			<version>
-				3.5.2
+				3.5.1
 			</version>
-		</dependency>
+		</dependency-->
 
 
 	</dependencies>

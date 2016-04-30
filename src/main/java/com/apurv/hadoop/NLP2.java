@@ -1,8 +1,9 @@
 //package com.apurv.hadoop;
 //
+//import java.util.List;
 //import java.util.Properties;
 //
-//import edu.stanford.nlp.ling.CoreAnnotations;
+//import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
 //import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations;
 //import edu.stanford.nlp.pipeline.Annotation;
 //import edu.stanford.nlp.pipeline.StanfordCoreNLP;
@@ -10,8 +11,8 @@
 //import edu.stanford.nlp.trees.Tree;
 //import edu.stanford.nlp.util.CoreMap;
 //
-////this works with version 3.4.1
-//public class NLP {
+////This works with version 3.5.2
+//public class NLP2 {
 //  public static Properties props = new Properties();
 //  public static StanfordCoreNLP pipeline;
 //
@@ -23,28 +24,27 @@
 //
 //  public static float findSentiment(String tweet) {
 //
+//    int longest = 0;
 //    float mainSentiment = 0;
 //    if (tweet != null && tweet.length() > 0) {
-//        int longest = 0;
-//        Annotation annotation = pipeline.process(tweet);
-//        for (CoreMap sentence : annotation
-//                .get(CoreAnnotations.SentencesAnnotation.class)) {
-//            Tree tree = sentence
-//                    .get(SentimentCoreAnnotations.AnnotatedTree.class);
-//            int sentiment = RNNCoreAnnotations.getPredictedClass(tree);
-//            String partText = sentence.toString();
-//            if (partText.length() > longest) {
-//                mainSentiment = sentiment;
-//                longest = partText.length();
-//            }
-//
+//      Annotation document = new Annotation(tweet);
+//      pipeline.annotate(document);
+//      List<CoreMap> sentences = document.get(SentencesAnnotation.class);
+//      for(CoreMap sentence: sentences) {
+//        Tree tree = sentence.get(SentimentCoreAnnotations.SentimentAnnotatedTree.class);
+//        int sentiment = RNNCoreAnnotations.getPredictedClass(tree);
+//        String partText = sentence.toString();
+//        if (partText.length() > longest) {
+//          mainSentiment = sentiment;
+//          longest = partText.length();
 //        }
+//      }
 //    }
 //    return mainSentiment/4.0f;
-//}
+//  }
 //
 //  public static void main(String[] args) {
-//    NLP.init();
-//    System.out.println(NLP.findSentiment("It was a great movie. The story was awesome, I highly recommend it."));
+//    NLP2.init();
+//    System.out.println(NLP2.findSentiment("It was a great movie. The story was awesome, I highly recommend it."));
 //  }
 //}
