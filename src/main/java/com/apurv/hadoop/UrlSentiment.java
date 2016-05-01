@@ -35,14 +35,14 @@ import org.joda.time.format.DateTimeFormatter;
 public class UrlSentiment {
 
   public static class UrlSentimentMapper
-  extends Mapper<LongWritable, Text, LongText, FloatWritable> {
+  extends Mapper<LongWritable, Text, LongText, Text> {
     private final static Text pUrl = new Text(); //current p_url
     private final static LongWritable timestamp = new LongWritable();
     private final static Set<String> topUrls = new HashSet<>();
     private final DateTimeFormatter f = DateTimeFormat.forPattern("yyyy-MM-dd HH:mm:ss");
     private final List<String> comments = new ArrayList<>();
     
-    private final FloatWritable sentimentScore = new FloatWritable();
+    private final Text content = new Text();
     private final LongText timestampUrl = new LongText();
 
     protected void setup(Context context) throws IOException {
@@ -92,15 +92,13 @@ public class UrlSentiment {
                      timestamp.get() > -1 && 
                      comments.size() > 0 &&
                      topUrls.contains(pUrl.toString())) {
-            //compute the average sentiment
-            float sigmaSentiment = 0;
-            for(String comment : comments) {
-              sigmaSentiment += 0;
+            String contentStr = comments.get(0);
+            for(int i = 1; i < comments.size(); i++) {
+              contentStr = contentStr + "," + comments.get(i);
             }
-            float avgSentiment = sigmaSentiment/comments.size();
-            sentimentScore.set(avgSentiment);
+            content.set(contentStr);
             timestampUrl.set(timestamp.get(), pUrl.toString());
-            context.write(timestampUrl, sentimentScore);
+            context.write(timestampUrl, content);
           }
           pUrl.clear();
           timestamp.set(-1);
@@ -127,33 +125,34 @@ public class UrlSentiment {
   
  
   public static class UrlSentimentReducer
-  extends Reducer<LongText, FloatWritable, LongText, FloatWritable> {
+  extends Reducer<LongText, Text, LongText, Text> {
     
-    private final static FloatWritable avgSentimentScore = new FloatWritable();
+    private final static Text aggr = new Text();
     
     @Override
-    public void reduce(LongText timestampUrl, Iterable<FloatWritable> sentimentScores,
+    public void reduce(LongText timestampUrl, Iterable<Text> comments,
         Context context) throws IOException, InterruptedException {
-      float avgSentiment = 0;
-      float count = 0;
-      for(FloatWritable sentimentScore: sentimentScores) {
-        avgSentiment += sentimentScore.get();
-        count += 1;
+      String aggrStr = null;
+      for(Text comment: comments) {
+        if(aggrStr == null) {
+          aggrStr = comment.toString();
+        } else {
+          aggrStr = aggrStr + "," + comment.toString();
+        }
       }
-      avgSentiment = avgSentiment/count;
-      avgSentimentScore.set(avgSentiment);
-      context.write(timestampUrl, avgSentimentScore);
+      aggr.set(aggrStr);
+      context.write(timestampUrl, aggr);
     }
     
   }
 
   public static void main(String[] args) throws IOException,
   ClassNotFoundException, InterruptedException, URISyntaxException {
-    args = new String[3];
-    args[0] = "/home/dapurv5/Downloads/quotes_2008-08-small.txt.gz";
-    args[1] = "/home/dapurv5/Desktop/hdfs-output/meme_tracker";
-    args[2] = "file:///home/dapurv5/Downloads/meme_tracker/nodes-500.tsv";
-    args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-500.tsv";
+    //args = new String[3];
+    //args[0] = "/home/dapurv5/Downloads/quotes_2008-08-small.txt.gz";
+    //args[1] = "/home/dapurv5/Desktop/hdfs-output/meme_tracker";
+    //args[2] = "file:///home/dapurv5/Downloads/meme_tracker/nodes-500.tsv";
+    //args[2] = "/home/dapurv5/Downloads/meme_tracker/nodes-500.tsv";
 
     Configuration conf = new Configuration();
     Job job = Job.getInstance(conf, "url_sentiment");
@@ -169,7 +168,7 @@ public class UrlSentiment {
     job.setReducerClass(UrlSentimentReducer.class);
 
     job.setOutputKeyClass(LongText.class);
-    job.setOutputValueClass(FloatWritable.class);
+    job.setOutputValueClass(Text.class);
     System.exit(job.waitForCompletion(true)?0:1);
   }
 
