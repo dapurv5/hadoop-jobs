@@ -26,10 +26,12 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 public class NodeDegree {
 
   public static class UrlCountMapper 
-  extends Mapper<LongWritable, Text, Text, IntWritable> {
+  extends Mapper<LongWritable, Text, Text, IntText> {
     private final static Text pUrl = new Text(); //current p_url
     private final static Text lUrl = new Text(); //current l_url
-    private final static IntWritable unity = new IntWritable(1);
+    
+    //store the degree and the type of the url
+    private final static IntText degreeType = new IntText();    
 
     private String extractUrl(String url) throws URISyntaxException {
       URI uri = new URI(url);
@@ -75,8 +77,10 @@ public class NodeDegree {
 
       if(pUrl.toString().length() > 0 && lUrl.toString().length() > 0) {
         //increment degree for each page by one
-        context.write(pUrl, unity);
-        context.write(lUrl, unity);
+        degreeType.set(1, "P");
+        context.write(pUrl, degreeType);
+        degreeType.set(1, "L");
+        context.write(lUrl, degreeType);
         lUrl.clear();
       }
 
@@ -84,18 +88,28 @@ public class NodeDegree {
   }
 
   public static class UrlCountReducer
-  extends Reducer<Text, IntWritable, Text, IntWritable> {
+  extends Reducer<Text, IntText, Text, IntWritable> {
     private final static IntWritable degree = new IntWritable();
 
     @Override
-    protected void reduce(Text url, Iterable<IntWritable> degrees, Context context)
+    protected void reduce(Text url, Iterable<IntText> degreeTypePairs, Context context)
         throws IOException, InterruptedException {
       int sumDegrees = 0;
-      for(IntWritable adj: degrees) {
-        sumDegrees += adj.get();
+      boolean isTypeP = false;
+      boolean isTypeL = false;
+      for(IntText degreeType: degreeTypePairs) {
+        sumDegrees += degreeType.getFirst();
+        if(degreeType.getSecond().equals("P")) {
+          isTypeP = true;
+        } else if(degreeType.getSecond().equals("L")) {
+          isTypeL = true;
+        }
       }
-      degree.set(sumDegrees);
-      context.write(url, degree);
+      //Write the url, degree only if the url occurred both as a P and L url
+      if(isTypeP && isTypeL) {
+        degree.set(sumDegrees);
+        context.write(url, degree); 
+      }
     }
   }
 
@@ -114,8 +128,9 @@ public class NodeDegree {
 
     job.setMapperClass(UrlCountMapper.class);
     job.setReducerClass(UrlCountReducer.class);
-    job.setCombinerClass(UrlCountReducer.class);
 
+    job.setMapOutputKeyClass(Text.class);
+    job.setMapOutputValueClass(IntText.class);
     job.setOutputKeyClass(Text.class);
     job.setOutputValueClass(IntWritable.class);
     System.exit(job.waitForCompletion(true)?0:1);
