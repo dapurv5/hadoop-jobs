@@ -107,7 +107,7 @@
 								<transformer
 									implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
 									<!--Put your main class here ! </mainClass -->
-									<mainClass>com.apurv.hadoop.EdgeTimestamps</mainClass>
+									<mainClass>com.apurv.hadoop.UrlSentiment</mainClass>
 								</transformer>
 							</transformers>
 						</configuration>
